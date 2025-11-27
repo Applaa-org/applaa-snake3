@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNAKE3 - Retro Arcade Game</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background: #001100;
+            color: #00ff00;
+            font-family: 'Press Start 2P', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 3px solid #00ff00;
+            box-shadow: 0 0 20px #00ff00;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: #000000;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            text-shadow: 2px 2px 0px #005500;
+        }
+        
+        #menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 17, 0, 0.95);
+            border: 2px solid #00ff00;
+            padding: 30px;
+            min-width: 400px;
+        }
+        
+        #menu h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #00ffff;
+            text-shadow: 3px 3px 0px #005555;
+        }
+        
+        #menu p {
+            font-size: 10px;
+            margin: 10px 0;
+            line-height: 1.5;
+        }
+        
+        .button {
+            background: #003300;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            padding: 10px 20px;
+            margin: 5px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .button:hover {
+            background: #005500;
+            color: #00ffff;
+            box-shadow: 0 0 10px #00ffff;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="ui">
+            <div id="score">SCORE: 0</div>
+            <div id="highScore">HI-SCORE: 0</div>
+        </div>
+        
+        <div id="startMenu" class="menu">
+            <h1>SNAKE3</h1>
+            <p>WASD/Arrows: Move</p>
+            <p>Space: Shoot</p>
+            <p>ESC: Menu</p>
+            <button class="button" onclick="startGame()">START GAME</button>
+            <button class="button" onclick="closeGame()">CLOSE</button>
+        </div>
+        
+        <div id="victoryMenu" class="menu hidden">
+            <h1>VICTORY!</h1>
+            <p id="finalScore">FINAL SCORE: 0</p>
+            <button class="button" onclick="restartGame()">RESTART</button>
+            <button class="button" onclick="mainMenu()">MAIN MENU</button>
+            <button class="button" onclick="closeGame()">CLOSE</button>
+        </div>
+        
+        <div id="defeatMenu" class="menu hidden">
+            <h1>GAME OVER</h1>
+            <p id="defeatScore">FINAL SCORE: 0</p>
+            <button class="button" onclick="restartGame()">RESTART</button>
+            <button class="button" onclick="mainMenu()">MAIN MENU</button>
+            <button class="button" onclick="closeGame()">CLOSE</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        
+        let gameState = 'menu';
+        let score = 0;
+        let highScore = localStorage.getItem('snake3_highscore') || 0;
+        let animationId;
+        
+        // Game objects
+        let player = {
+            x: 400,
+            y: 550,
+            size: 15,
+            angle: -Math.PI/2,
+            speed: 5
+        };
+        
+        let bullets = [];
+        let worm = [];
+        let mushrooms = [];
+        
+        // Input handling
+        const keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            if (e.key === 'Escape' && gameState === 'playing') {
+                gameState = 'menu';
+                showMenu('startMenu');
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        // Initialize worm
+        function initWorm() {
+            worm = [];
+            for (let i = 0; i < 12; i++) {
+                worm.push({
+                    x: 400 - i * 20,
+                    y: 50,
+                    size: 8
+                });
+            }
+        }
+        
+        // Game functions
+        function startGame() {
+            gameState = 'playing';
+            score = 0;
+            bullets = [];
+            mushrooms = [];
+            player.x = 400;
+            player.y = 550;
+            initWorm();
+            hideAllMenus();
+            updateUI();
+            gameLoop();
+        }
+        
+        function restartGame() {
+            startGame();
+        }
+        
+        function mainMenu() {
+            gameState = 'menu';
+            showMenu('startMenu');
+        }
+        
+        function closeGame() {
+            if (confirm('Close the game?')) {
+                window.close();
+            }
+        }
+        
+        function showMenu(menuId) {
+            hideAllMenus();
+            document.getElementById(menuId).classList.remove('hidden');
+        }
+        
+        function hideAllMenus() {
+            document.querySelectorAll('.menu').forEach(menu => {
+                menu.classList.add('hidden');
+            });
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = `SCORE: ${score}`;
+            document.getElementById('highScore').textContent = `HI-SCORE: ${highScore}`;
+        }
+        
+        function addScore(points) {
+            score += points;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snake3_highscore', highScore);
+            }
+            updateUI();
+        }
+        
+        // Game mechanics
+        function updatePlayer() {
+            // Movement
+            if (keys['a'] || keys['arrowleft']) {
+                player.x -= player.speed;
+                player.angle = Math.PI;
+            }
+            if (keys['d'] || keys['arrowright']) {
+                player.x += player.speed;
+                player.angle = 0;
+            }
+            if (keys['w'] || keys['arrowup']) {
+                player.y -= player.speed;
+                player.angle = -Math.PI/2;
+            }
+            if (keys['s'] || keys['arrowdown']) {
+                player.y += player.speed;
+                player.angle = Math.PI/2;
+            }
+            
+            // Shooting
+            if (keys[' '] && bullets.length < 3) {
+                bullets.push({
+                    x: player.x,
+                    y: player.y,
+                    vx: Math.cos(player.angle - Math.PI/2) * 10,
+                    vy: Math.sin(player.angle - Math.PI/2) * 10,
+                    life: 60
+                });
+                keys[' '] = false; // Prevent rapid fire
+            }
+            
+            // Boundaries
+            player.x = Math.max(20, Math.min(780, player.x));
+            player.y = Math.max(20, Math.min(580, player.y));
+        }
+        
+        function updateBullets() {
+            bullets = bullets.filter(bullet => {
+                bullet.x += bullet.vx;
+                bullet.y += bullet.vy;
+                bullet.life--;
+                
+                // Check boundaries
+                if (bullet.x < 0 || bullet.x > 800 || bullet.y < 0 || bullet.y > 600 || bullet.life <= 0) {
+                    return false;
+                }
+                
+                // Check worm collision
+                for (let i = 0; i < worm.length; i++) {
+                    const segment = worm[i];
+                    const dist = Math.hypot(bullet.x - segment.x, bullet.y - segment.y);
+                    if (dist < segment.size + 3) {
+                        worm.splice(i, 1);
+                        addScore(100);
+                        
+                        // Chance to spawn mushroom
+                        if (Math.random() < 0.3) {
+                            mushrooms.push({
+                                x: segment.x,
+                                y: segment.y,
+                                health: 3
+                            });
+                        }
+                        
+                        return false;
+                    }
+                }
+                
+                // Check mushroom collision
+                for (let i = 0; i < mushrooms.length; i++) {
+                    const mushroom = mushrooms[i];
+                    const dist = Math.hypot(bullet.x - mushroom.x, bullet.y - mushroom.y);
+                    if (dist < 10) {
+                        mushroom.health--;
+                        if (mushroom.health <= 0) {
+                            mushrooms.splice(i, 1);
+                            addScore(50);
+                        }
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+        }
+        
+        function updateWorm() {
+            if (worm.length === 0) {
+                victory();
+                return;
+            }
+            
+            // Simple centipede movement
+            const head = worm[0];
+            let newX = head.x + 2;
+            let newY = head.y;
+            
+            // Bounce off walls
+            if (newX <= 20 || newX >= 780) {
+                newX = head.x;
+                newY += 30;
+            }
+            
+            // Check if reached bottom
+            if (newY >= 550) {
+                defeat();
+                return;
+            }
+            
+            // Move segments
+            for (let i = worm.length - 1; i > 0; i--) {
+                worm[i].x = worm[i - 1].x;
+                worm[i].y = worm[i - 1].y;
+            }
+            
+            head.x = newX;
+            head.y = newY;
+            
+            // Check player collision
+            for (const segment of worm) {
+                const dist = Math.hypot(player.x - segment.x, player.y - segment.y);
+                if (dist < player.size + segment.size) {
+                    defeat();
+                    return;
+                }
+            }
+        }
+        
+        function victory() {
+            gameState = 'victory';
+            document.getElementById('finalScore').textContent = `FINAL SCORE: ${score}`;
+            showMenu('victoryMenu');
+        }
+        
+        function defeat() {
+            gameState = 'defeat';
+            document.getElementById('defeatScore').textContent = `FINAL SCORE: ${score}`;
+            showMenu('defeatMenu');
+        }
+        
+        // Rendering
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(player.angle);
+            ctx.fillStyle = '#00ff00';
+            ctx.beginPath();
+            ctx.moveTo(0, -player.size);
+            ctx.lineTo(-player.size * 0.8, player.size * 0.8);
+            ctx.lineTo(player.size * 0.8, player.size * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+        
+        function drawBullets() {
+            ctx.fillStyle = '#00ffff';
+            bullets.forEach(bullet => {
+                ctx.fillRect(bullet.x - 2, bullet.y - 6, 4, 12);
+            });
+        }
+        
+        function drawWorm() {
+            worm.forEach((segment, i) => {
+                ctx.fillStyle = i === 0 ? '#00ffff' : '#00ccff';
+                ctx.fillRect(segment.x - segment.size, segment.y - segment.size, segment.size * 2, segment.size * 2);
+            });
+        }
+        
+        function drawMushrooms() {
+            mushrooms.forEach(mushroom => {
+                const colors = ['#00ff00', '#00cc00', '#009900'];
+                ctx.fillStyle = colors[mushroom.health - 1] || '#00ff00';
+                ctx.fillRect(mushroom.x - 10, mushroom.y - 10, 20, 20);
+            });
+        }
+        
+        function render() {
+            // Clear canvas
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 800, 600);
+            
+            // Draw grid (subtle)
+            ctx.strokeStyle = '#001100';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < 800; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, 600);
+                ctx.stroke();
+            }
+            for (let y = 0; y < 600; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(800, y);
+                ctx.stroke();
+            }
+            
+            if (gameState === 'playing') {
+                drawMushrooms();
+                drawWorm();
+                drawBullets();
+                drawPlayer();
+            }
+        }
+        
+        function gameLoop() {
+            if (gameState !== 'playing') {
+                cancelAnimationFrame(animationId);
+                return;
+            }
+            
+            updatePlayer();
+            updateBullets();
+            updateWorm();
+            render();
+            
+            animationId = requestAnimationFrame(gameLoop);
+        }
+        
+        // Initialize
+        updateUI();
+        showMenu('startMenu');
+        render();
+    </script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "game": {
+    "name": "snake3",
+    "type": "2D",
+    "genre": "arcade shooter",
+    "description": "A Centipede-inspired arcade game where the player controls a triangle shooting at a segmented worm enemy"
+  },
+  "settings": {
+    "window": {"width": 800, "height": 600},
+    "physics": {"gravity": 0},
+    "aesthetic": {
+      "style": "Nokia 3310 retro",
+      "colors": ["#00ff00", "#00cc00", "#009900", "#ffffff", "#0000ff"],
+      "graphics": "vector-based with pixelated UI"
+    }
+  },
+  "player": {
+    "name": "Player",
+    "type": "triangle",
+    "speed": 300,
+    "abilities": ["move", "shoot"]
+  },
+  "entities": {
+    "enemies": [
+      {
+        "name": "Worm",
+        "type": "segmented",
+        "segments": 12,
+        "speed": 100,
+        "behavior": "centipede_movement"
+      }
+    ],
+    "projectiles": [
+      {
+        "name": "Bullet",
+        "speed": 500,
+        "damage": 1
+      }
+    ]
+  },
+  "levels": [
+    {
+      "name": "Arcade Stage",
+      "background": "dark_grid",
+      "obstacles": ["mushrooms"]
+    }
+  ],
+  "logic": {
+    "winCondition": "destroy_worm_segments",
+    "loseCondition": "worm_reaches_bottom",
+    "scoring": {
+      "pointsPerSegment": 100,
+      "pointsPerMushroom": 50
+    }
+  }
+}
